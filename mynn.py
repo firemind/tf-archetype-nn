@@ -17,10 +17,13 @@ class MyNeuralNet:
       init_factor_2 = 0.01 / (hidden1 ** (0.5))      
       #@hidden1 = (NMatrix.random(hid1dim) - NMatrix.ones(hid1dim) /2)*@init_factor_1
       self.hidden1_size =  hidden1
-      self.hidden1 = tf.mul(tf.Variable(tf.random_normal([inputs_with_bias, hidden1], 0, 1.0)), init_factor_1)
-      #@output  = (NMatrix.random(outdim)   - NMatrix.ones(outdim) /2) *@init_factor_2
       self.output_shape = [hidden1+1, outs]
-      self.output = tf.mul(tf.Variable(tf.random_normal(self.output_shape, 0, 1.0)), init_factor_2)
+      with tf.Session() as sess:
+        hid1ran = tf.Variable(tf.random_normal([inputs_with_bias, hidden1], 0, 1.0))
+        outran = tf.Variable(tf.random_normal(self.output_shape, 0, 1.0))
+        sess.run(tf.initialize_all_variables())
+        self.hidden1 = sess.run(tf.mul(hid1ran, init_factor_1))
+        self.output = sess.run(tf.mul(outran, init_factor_2))
     else:
       self.output= tf.Variable(tf.random_normal([inputs, outs], 0, 1.0))    
     
@@ -105,11 +108,11 @@ class MyNeuralNet:
     else:
       return self.outfunc( tf.matmul(input, self.output))
     
-  def extract_class_from(self, result):
+  def extract_class_from(self, result, sess):
     start_time = time.time()
-    with tf.Session() as sess:
-      sess.run(tf.initialize_all_variables())
-      res = self.classes[sess.run(tf.argmax(tf.transpose(result), 0))]
+    sess.run(tf.initialize_all_variables())
+    print("--> %s seconds ---" % (time.time() - start_time))
+    res = self.classes[sess.run(tf.argmax(tf.transpose(result), 0))]
     
     
     print("--- %s seconds ---" % (time.time() - start_time))
