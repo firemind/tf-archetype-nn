@@ -23,14 +23,14 @@ import tensorflow as tf
 
 from tensorflow_serving.apis import predict_pb2
 from tensorflow_serving.apis import prediction_service_pb2
-from tensorflow_serving.example import archetype_input_data
+from tensorflow_serving.firemind import archetype_input_data
 
 
 tf.app.flags.DEFINE_integer('concurrency', 1,
                             'maximum number of concurrent inference requests')
 tf.app.flags.DEFINE_integer('num_tests', 100, 'Number of test images')
 tf.app.flags.DEFINE_string('server', '', 'PredictionService host:port')
-tf.app.flags.DEFINE_string('work_dir', '/tmp', 'Working directory. ')
+tf.app.flags.DEFINE_string('work_dir', '/myproject/', 'Working directory. ')
 FLAGS = tf.app.flags.FLAGS
 
 
@@ -96,10 +96,11 @@ def _create_rpc_callback(label, result_counter):
     else:
       sys.stdout.write('.')
       sys.stdout.flush()
+      print(result_future.result())
       response = numpy.array(
-          result_future.result().outputs['scores'].float_val)
+          result_future.result().outputs['classes'].int_val)
       prediction = numpy.argmax(response)
-      if label != prediction:
+      if numpy.argmax(label) != prediction:
         result_counter.inc_error()
     result_counter.inc_done()
     result_counter.dec_active()
@@ -128,10 +129,10 @@ def do_inference(hostport, work_dir, concurrency, num_tests):
   result_counter = _ResultCounter(num_tests, concurrency)
   for _ in range(num_tests):
     request = predict_pb2.PredictRequest()
-    request.model_spec.name = 'mnist'
-    image, label = test_data_set.next_batch(1)
-    request.inputs['images'].CopyFrom(
-        tf.contrib.util.make_tensor_proto(image[0], shape=[1, image[0].size]))
+    request.model_spec.name = 'archetype-model'
+    deck, label = test_data_set.next_batch(1)
+    request.inputs['decks'].CopyFrom(
+        tf.contrib.util.make_tensor_proto(deck, shape=[1, deck[0].size]))
     result_counter.throttle()
     result_future = stub.Predict.future(request, 5.0)  # 5 seconds
     result_future.add_done_callback(

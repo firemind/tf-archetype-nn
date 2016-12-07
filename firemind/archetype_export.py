@@ -168,8 +168,16 @@ with tf.Graph().as_default():
   sets = archetype_input_data.read_data_sets(FLAGS.work_dir)
   train = sets.train
   validation = sets.validation
-  decks_placeholder = tf.placeholder(tf.float32, shape=(batch_size, train.num_inputs))
-  labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
+
+  serialized_tf_example = tf.placeholder(tf.string, name='tf_example')
+  feature_configs = {
+    'x': tf.FixedLenFeature(shape=[train.num_inputs], dtype=tf.float32),
+  }
+  tf_example = tf.parse_example(serialized_tf_example, feature_configs)
+  x = tf.identity(tf_example['x'], name='x')
+
+  decks_placeholder = tf.placeholder(tf.float32, shape=(None, train.num_inputs))
+  labels_placeholder = tf.placeholder(tf.int32, shape=(None))
   logits = inference(decks_placeholder,
                      train.num_inputs,
                            64,
@@ -179,6 +187,14 @@ with tf.Graph().as_default():
 
   # Add to the Graph the Ops that calculate and apply gradients.
   train_op = training(loss_op, learning_rate)
+
+
+  values = tf.nn.in_top_k(logits, labels_placeholder, 1)
+  prediction_classes =tf.placeholder(tf.float32, shape=(None,train.num_classes))
+  print(prediction_classes)
+  print(values)
+  print(x)
+
 
   # Add the Op to compare the logits to the labels during evaluation.
   eval_correct = evaluation(logits, labels_placeholder)
@@ -254,12 +270,17 @@ with tf.Graph().as_default():
               labels_placeholder,
               validation)
 
+
+  y_ = tf.placeholder('float', shape=[None, 1])
   export_path = "./archetype-model"
   saver = tf.train.Saver(sharded=True)
   model_exporter = exporter.Exporter(saver)
   model_exporter.init(
     sess.graph.as_graph_def(),
+    default_graph_signature=exporter.classification_signature(
+      input_tensor=serialized_tf_example,
+      classes_tensor=prediction_classes),
     named_graph_signatures={
-      'inputs': exporter.generic_signature({'decks': decks_placeholder}),
-      'outputs': exporter.generic_signature({'classes': labels_placeholder})})
+      'inputs': exporter.generic_signature({'decks': x}),
+      'outputs': exporter.generic_signature({'classes': logits})})
   model_exporter.export(export_path, tf.constant(FLAGS.export_version), sess)
