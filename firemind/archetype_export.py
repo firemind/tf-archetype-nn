@@ -105,8 +105,6 @@ def evaluation(logits, labels):
   # It returns a bool tensor with shape [batch_size] that is true for
   # the examples where the label is in the top k (here k=1)
   # of all logits for that example.
-  print(logits)
-  print(labels)
   correct = tf.nn.in_top_k(logits, labels, 1)
   # Return the number of true entries.
   return tf.reduce_sum(tf.cast(correct, tf.int32))
@@ -167,7 +165,9 @@ learning_rate = 0.05
 max_steps = 3000
 train_dir = './mytrain'
 with tf.Graph().as_default():
-  train = archetype_input_data.read_data_sets(FLAGS.work_dir).train
+  sets = archetype_input_data.read_data_sets(FLAGS.work_dir)
+  train = sets.train
+  validation = sets.validation
   decks_placeholder = tf.placeholder(tf.float32, shape=(batch_size, train.num_inputs))
   labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
   logits = inference(decks_placeholder,
@@ -252,7 +252,7 @@ with tf.Graph().as_default():
               eval_correct,
               decks_placeholder,
               labels_placeholder,
-              test)
+              validation)
 
   export_path = "./archetype-model"
   saver = tf.train.Saver(sharded=True)

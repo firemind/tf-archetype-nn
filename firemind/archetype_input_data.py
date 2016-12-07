@@ -85,8 +85,6 @@ class DataSet(object):
       # Shuffle the data
       perm = numpy.arange(self._num_examples)
       numpy.random.shuffle(perm)
-      print(self._decks[perm])
-      print(self._labels[perm])
       self._decks = self._decks[perm]
       self._labels = self._labels[perm]
       # Start next epoch

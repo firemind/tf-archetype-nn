@@ -43,7 +43,7 @@ py_binary(
         "archetype_client.py",
     ],
     deps = [
-        ":mnist_input_data",
+        ":archetype_input_data",
         "//tensorflow_serving/apis:predict_proto_py_pb2",
         "//tensorflow_serving/apis:prediction_service_proto_py_pb2",
         "@org_tensorflow//tensorflow:tensorflow_py",
