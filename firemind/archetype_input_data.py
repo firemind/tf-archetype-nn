@@ -29,6 +29,14 @@ import random
 import numpy
 from six.moves import urllib
 
+def dense_to_one_hot(labels_dense, num_classes=10):
+  """Convert class labels from scalars to one-hot vectors."""
+  num_labels = labels_dense.shape[0]
+  index_offset = numpy.arange(num_labels) * num_classes
+  labels_one_hot = numpy.zeros((num_labels, num_classes))
+  labels_one_hot.flat[index_offset + labels_dense.ravel()] = 1
+  return labels_one_hot
+
 class DataSet(object):
 
   def __init__(self, decks, labels, num_classes, dtype=tf.float32):
@@ -45,8 +53,8 @@ class DataSet(object):
     # Convert shape from [num examples, rows, columns, depth]
     # to [num examples, rows*columns] (assuming depth == 1)
 
-    self._decks = numpy.array(decks)
-    self._labels = numpy.array(labels)
+    self._decks = numpy.array(decks).astype(numpy.float32)
+    self._labels = dense_to_one_hot(numpy.array(labels), num_classes) #.astype(numpy.float32)
     self._epochs_completed = 0
     self._index_in_epoch = 0
 
@@ -112,10 +120,10 @@ def read_data_sets(train_dir):
     for row in reader:
       if header == None:
         header = row
-        cards = map(int, row[3:])
+        cards = map(float, row[3:])
         input_size = len(row)-3
       elif row[2] == "37":
-        c = int(row[1])
+        c = float(row[1])
         classes.add(c)
         rec = [map(float, row[3:]), c]
         archetypes.append(rec)

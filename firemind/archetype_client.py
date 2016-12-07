@@ -24,6 +24,7 @@ import tensorflow as tf
 from tensorflow_serving.apis import predict_pb2
 from tensorflow_serving.apis import prediction_service_pb2
 from tensorflow_serving.firemind import archetype_input_data
+tf.logging.set_verbosity(tf.logging.DEBUG)
 
 
 tf.app.flags.DEFINE_integer('concurrency', 1,
@@ -96,9 +97,8 @@ def _create_rpc_callback(label, result_counter):
     else:
       sys.stdout.write('.')
       sys.stdout.flush()
-      print(result_future.result())
       response = numpy.array(
-          result_future.result().outputs['classes'].int_val)
+          result_future.result().outputs['scores'].float_val)
       prediction = numpy.argmax(response)
       if numpy.argmax(label) != prediction:
         result_counter.inc_error()
@@ -131,8 +131,10 @@ def do_inference(hostport, work_dir, concurrency, num_tests):
     request = predict_pb2.PredictRequest()
     request.model_spec.name = 'archetype-model'
     deck, label = test_data_set.next_batch(1)
+    print(deck)
+    #print(label)
     request.inputs['decks'].CopyFrom(
-        tf.contrib.util.make_tensor_proto(deck, shape=[1, deck[0].size]))
+        tf.contrib.util.make_tensor_proto(deck[0], shape=[1, deck[0].size]))
     result_counter.throttle()
     result_future = stub.Predict.future(request, 5.0)  # 5 seconds
     result_future.add_done_callback(
