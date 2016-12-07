@@ -2,19 +2,20 @@ from __future__ import print_function
 
 import sys
 import time
+import math
 
 # This is a placeholder for a Google-internal import.
 
 import tensorflow as tf
 
 from tensorflow.contrib.session_bundle import exporter
-from tensorflow_serving.firemind import archetype_input_data
+import archetype_input_data
 
 tf.app.flags.DEFINE_string('work_dir', '/myproject/', 'Working directory.')
 tf.app.flags.DEFINE_integer('export_version', 1, 'version number of the model.')
 FLAGS = tf.app.flags.FLAGS
 
-def inference(decks, input_size, hidden1_units, hidden2_units):
+def inference(decks, input_size, hidden1_units, hidden2_units, num_classes):
   """Build the MNIST model up to where it may be used for inference.
   Args:
     decks: Deck placeholder, from inputs().
@@ -44,10 +45,10 @@ def inference(decks, input_size, hidden1_units, hidden2_units):
   # Linear
   with tf.name_scope('softmax_linear'):
     weights = tf.Variable(
-        tf.truncated_normal([hidden2_units, NUM_CLASSES],
+        tf.truncated_normal([hidden2_units, num_classes],
                             stddev=1.0 / math.sqrt(float(hidden2_units))),
         name='weights')
-    biases = tf.Variable(tf.zeros([NUM_CLASSES]),
+    biases = tf.Variable(tf.zeros([num_classes]),
                          name='biases')
     logits = tf.matmul(hidden2, weights) + biases
   return logits
@@ -55,7 +56,7 @@ def inference(decks, input_size, hidden1_units, hidden2_units):
 def loss(logits, labels):
   """Calculates the loss from the logits and the labels.
   Args:
-    logits: Logits tensor, float - [batch_size, NUM_CLASSES].
+    logits: Logits tensor, float - [batch_size, num_classes].
     labels: Labels tensor, int32 - [batch_size].
   Returns:
     loss: Loss tensor of type float.
@@ -104,6 +105,8 @@ def evaluation(logits, labels):
   # It returns a bool tensor with shape [batch_size] that is true for
   # the examples where the label is in the top k (here k=1)
   # of all logits for that example.
+  print(logits)
+  print(labels)
   correct = tf.nn.in_top_k(logits, labels, 1)
   # Return the number of true entries.
   return tf.reduce_sum(tf.cast(correct, tf.int32))
@@ -164,13 +167,14 @@ learning_rate = 0.05
 max_steps = 3000
 train_dir = './mytrain'
 with tf.Graph().as_default():
-  train_data_set = archetype_input_data.read_data_sets(FLAGS.work_dir).train
-  decks_placeholder = tf.placeholder(tf.float32, shape=(batch_size, train_data_set.num_inputs))
+  train = archetype_input_data.read_data_sets(FLAGS.work_dir).train
+  decks_placeholder = tf.placeholder(tf.float32, shape=(batch_size, train.num_inputs))
   labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
   logits = inference(decks_placeholder,
-                     train_data_set.num_inputs,
+                     train.num_inputs,
                            64,
-                           16)
+                           16,
+                           train.num_classes)
   loss_op = loss(logits, labels_placeholder)
 
   # Add to the Graph the Ops that calculate and apply gradients.

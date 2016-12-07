@@ -31,7 +31,7 @@ from six.moves import urllib
 
 class DataSet(object):
 
-  def __init__(self, decks, labels, dtype=tf.float32):
+  def __init__(self, decks, labels, num_classes, dtype=tf.float32):
     dtype = tf.as_dtype(dtype).base_dtype
     if dtype not in (tf.uint8, tf.float32):
       raise TypeError('Invalid image dtype %r, expected uint8 or float32' %
@@ -40,7 +40,7 @@ class DataSet(object):
 
     self._num_examples = len(decks)
     self._num_inputs = len(decks[0])
-    self._num_classes = len(labels[0])
+    self._num_classes = num_classes
 
     # Convert shape from [num examples, rows, columns, depth]
     # to [num examples, rows*columns] (assuming depth == 1)
@@ -63,12 +63,12 @@ class DataSet(object):
     return self._num_inputs
 
   @property
-  def num_classes(self):
-    return self._num_classes
-
-  @property
   def num_examples(self):
     return self._num_examples
+
+  @property
+  def num_classes(self):
+    return self._num_classes
 
   @property
   def epochs_completed(self):
@@ -85,23 +85,24 @@ class DataSet(object):
       # Shuffle the data
       perm = numpy.arange(self._num_examples)
       numpy.random.shuffle(perm)
+      print(self._decks[perm])
+      print(self._labels[perm])
       self._decks = self._decks[perm]
       self._labels = self._labels[perm]
       # Start next epoch
+      start = 0
+      self._index_in_epoch = batch_size
+      assert batch_size <= self._num_examples
+    end = self._index_in_epoch
+    return self._decks[start:end], self._labels[start:end]
 
-def read_data_sets(train_dir, fake_data=False, one_hot=False):
+def read_data_sets(train_dir):
   """Return training, validation and testing data sets."""
 
   class DataSets(object):
     pass
 
   data_sets = DataSets()
-
-  if fake_data:
-    data_sets.train = DataSet([], [], fake_data=True, one_hot=one_hot)
-    data_sets.validation = DataSet([], [], fake_data=True, one_hot=one_hot)
-    data_sets.test = DataSet([], [], fake_data=True, one_hot=one_hot)
-    return data_sets
 
   archetypes = []
   header = None
@@ -139,8 +140,8 @@ def read_data_sets(train_dir, fake_data=False, one_hot=False):
   split = int(len(decks) * 0.8)
   tv_split = int(split* 0.8)
 
-  data_sets.test  = DataSet(decks[(split):], labels[(split):])
-  data_sets.validation = DataSet(decks[tv_split:split],     labels[tv_split:split])
-  data_sets.train = DataSet(decks[:tv_split],     labels[:tv_split])
+  data_sets.train = DataSet(decks[(split):], labels[(split):], NUM_CLASSES)
+  data_sets.validation = DataSet(decks[tv_split:split],     labels[tv_split:split], NUM_CLASSES)
+  data_sets.test = DataSet(decks[:tv_split],     labels[:tv_split], NUM_CLASSES)
 
   return data_sets
