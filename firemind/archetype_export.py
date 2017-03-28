@@ -7,6 +7,14 @@ import math
 # This is a placeholder for a Google-internal import.
 
 import tensorflow as tf
+from tensorflow.python.saved_model import builder as saved_model_builder
+from tensorflow.python.saved_model import signature_constants
+from tensorflow.python.saved_model import signature_def_utils
+from tensorflow.python.saved_model import tag_constants
+from tensorflow.python.saved_model import utils
+from tensorflow.python.util import compat
+from tensorflow.contrib import lookup as lookup_lib
+
 
 from tensorflow.contrib.session_bundle import exporter
 import archetype_input_data
@@ -33,13 +41,22 @@ def main(_):
   y_ = tf.placeholder('float', shape=[None, num_classes])
   w = tf.Variable(tf.zeros([num_inputs, num_classes]))
   b = tf.Variable(tf.zeros([num_classes]))
-  sess.run(tf.initialize_all_variables())
+  init = tf.global_variables_initializer()
+  sess.run(init)
   y = tf.cast(tf.nn.softmax(tf.matmul(x, w) + b, name='y'), tf.float32)
   cross_entropy = -tf.reduce_sum(y_ * tf.log(y))
   train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
   values, indices = tf.nn.top_k(y, num_classes)
+  mapping_string = tf.constant([str(i) for i in archetype_data.train.classes])
   prediction_classes = tf.contrib.lookup.index_to_string(
-      tf.to_int64(indices), mapping=tf.constant([str(i) for i in range(num_classes)]))
+    tf.to_int64(indices), mapping=mapping_string)
+  #mapping_string = tf.constant([str(i) for i in range(num_classes)])
+  #indices = tf.to_int64(indices)
+  #mapping_string = tf.constant(["emerson", "lake", "palmer"])
+  #table = lookup_lib.index_to_string_from_tensor(
+  #  mapping_string, default_value="UNKNOWN")
+  #prediction_classes = table.lookup(indices)
+  #tf.tables_initializer().run()
   for _ in range(FLAGS.training_iteration):
     batch = archetype_data.train.next_batch(50)
     train_step.run(feed_dict={x: batch[0], y_: batch[1]})
@@ -57,20 +74,45 @@ def main(_):
   # whenever code changes.
   export_path = sys.argv[-1]
   print('Exporting trained model to %s' % export_path)
-  init_op = tf.group(tf.initialize_all_tables(), name='init_op')
-  saver = tf.train.Saver(sharded=True)
-  model_exporter = exporter.Exporter(saver)
-  model_exporter.init(
-      sess.graph.as_graph_def(),
-      init_op=init_op,
-      default_graph_signature=exporter.classification_signature(
-          input_tensor=serialized_tf_example,
-          classes_tensor=prediction_classes,
-          scores_tensor=values),
-      named_graph_signatures={
-          'inputs': exporter.generic_signature({'decks': x}),
-          'outputs': exporter.generic_signature({'scores': y})})
-  model_exporter.export(export_path, tf.constant(FLAGS.export_version), sess)
+  builder = saved_model_builder.SavedModelBuilder(export_path)
+
+
+  # Build the signature_def_map.
+  classification_inputs = utils.build_tensor_info(serialized_tf_example)
+  classification_outputs_classes = utils.build_tensor_info(prediction_classes)
+  classification_outputs_scores = utils.build_tensor_info(values)
+
+  classification_signature = signature_def_utils.build_signature_def(
+      inputs={signature_constants.CLASSIFY_INPUTS: classification_inputs},
+      outputs={
+          signature_constants.CLASSIFY_OUTPUT_CLASSES:
+              classification_outputs_classes,
+          signature_constants.CLASSIFY_OUTPUT_SCORES:
+              classification_outputs_scores
+      },
+      method_name=signature_constants.CLASSIFY_METHOD_NAME)
+
+  tensor_info_x = utils.build_tensor_info(x)
+  tensor_info_y = utils.build_tensor_info(y)
+
+  prediction_signature = signature_def_utils.build_signature_def(
+     inputs={'decks': tensor_info_x},
+     outputs={'scores': tensor_info_y},
+     method_name=signature_constants.PREDICT_METHOD_NAME)
+
+  legacy_init_op = tf.group(tf.initialize_all_tables(), name='legacy_init_op')
+  builder.add_meta_graph_and_variables(
+      sess, [tag_constants.SERVING],
+      signature_def_map={
+          'predict_decks':
+              prediction_signature,
+          signature_constants.DEFAULT_SERVING_SIGNATURE_DEF_KEY:
+              classification_signature,
+      },
+      legacy_init_op=legacy_init_op)
+
+  builder.save()
+
   print('Done exporting!')
 
 if __name__ == '__main__':

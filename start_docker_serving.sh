@@ -1,1 +1,1 @@
-sudo docker run -it -v $(pwd)/:/myproject firemind/tf-serving
+sudo docker run -it -p 9000:9000 -v $(pwd)/:/myproject  firemind/tf-serving

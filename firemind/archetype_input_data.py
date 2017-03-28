@@ -39,7 +39,7 @@ def dense_to_one_hot(labels_dense, num_classes=10):
 
 class DataSet(object):
 
-  def __init__(self, decks, labels, num_classes, dtype=tf.float32):
+  def __init__(self, decks, labels, classes, dtype=tf.float32):
     dtype = tf.as_dtype(dtype).base_dtype
     if dtype not in (tf.uint8, tf.float32):
       raise TypeError('Invalid image dtype %r, expected uint8 or float32' %
@@ -48,13 +48,13 @@ class DataSet(object):
 
     self._num_examples = len(decks)
     self._num_inputs = len(decks[0])
-    self._num_classes = num_classes
+    self._classes = classes
 
     # Convert shape from [num examples, rows, columns, depth]
     # to [num examples, rows*columns] (assuming depth == 1)
 
     self._decks = numpy.array(decks).astype(numpy.float32)
-    self._labels = dense_to_one_hot(numpy.array(labels), num_classes) #.astype(numpy.float32)
+    self._labels = dense_to_one_hot(numpy.array(labels), len(classes)) #.astype(numpy.float32)
     self._epochs_completed = 0
     self._index_in_epoch = 0
 
@@ -76,7 +76,11 @@ class DataSet(object):
 
   @property
   def num_classes(self):
-    return self._num_classes
+    return len(self._classes)
+
+  @property
+  def classes(self):
+    return self._classes
 
   @property
   def epochs_completed(self):
@@ -122,7 +126,8 @@ def read_data_sets(train_dir):
         header = row
         cards = map(float, row[3:])
         input_size = len(row)-3
-      elif row[2] == "37":
+      #elif row[2] == "37":
+      else:
         c = float(row[1])
         classes.add(c)
         rec = [map(float, row[3:]), c]
@@ -134,20 +139,19 @@ def read_data_sets(train_dir):
   decks = []
   labels = []
   classes = list(classes)
-  max_samples = 4000
+  max_samples = 8000
   random.shuffle(archetypes)
   for rec in archetypes[:max_samples]:
       decks.append(rec[0])
       #labels.append( map(lambda x: (1.0 if x == rec[1] else 0.0), classes))
       labels.append(classes.index(rec[1]))
-  NUM_CLASSES = len(classes)
 
 
   split = int(len(decks) * 0.8)
   tv_split = int(split* 0.8)
 
-  data_sets.train = DataSet(decks[(split):], labels[(split):], NUM_CLASSES)
-  data_sets.validation = DataSet(decks[tv_split:split],     labels[tv_split:split], NUM_CLASSES)
-  data_sets.test = DataSet(decks[:tv_split],     labels[:tv_split], NUM_CLASSES)
+  data_sets.train = DataSet(decks[(split):], labels[(split):], classes)
+  data_sets.validation = DataSet(decks[tv_split:split],     labels[tv_split:split], classes)
+  data_sets.test = DataSet(decks[:tv_split],     labels[:tv_split], classes)
 
   return data_sets
