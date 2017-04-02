@@ -39,7 +39,7 @@ def dense_to_one_hot(labels_dense, num_classes=10):
 
 class DataSet(object):
 
-  def __init__(self, decks, labels, classes, dtype=tf.float32):
+  def __init__(self, decks, labels, classes, cards, dtype=tf.float32):
     dtype = tf.as_dtype(dtype).base_dtype
     if dtype not in (tf.uint8, tf.float32):
       raise TypeError('Invalid image dtype %r, expected uint8 or float32' %
@@ -47,7 +47,7 @@ class DataSet(object):
 
 
     self._num_examples = len(decks)
-    self._num_inputs = len(decks[0])
+    self._num_inputs = len(cards)
     self._classes = classes
 
     # Convert shape from [num examples, rows, columns, depth]
@@ -118,19 +118,17 @@ def read_data_sets(train_dir):
   header = None
   cards = None
   classes = set()
-  input_size = None
   with open(train_dir+'archetypes.csv', 'rb') as csvfile:
     reader = csv.reader(csvfile, delimiter=',', quotechar='"')
     for row in reader:
       if header == None:
         header = row
-        cards = map(float, row[3:])
-        input_size = len(row)-3
+        cards = map(int, row[3:])
       #elif row[2] == "37":
       else:
         c = float(row[1])
         classes.add(c)
-        rec = [map(float, row[3:]), c]
+        rec = [map(int, row[3:]), c]
         archetypes.append(rec)
       #else:
         #print row[2];
@@ -139,19 +137,26 @@ def read_data_sets(train_dir):
   decks = []
   labels = []
   classes = list(classes)
-  max_samples = 8000
+  #max_samples = 8000
   random.shuffle(archetypes)
-  for rec in archetypes[:max_samples]:
-      decks.append(rec[0])
-      #labels.append( map(lambda x: (1.0 if x == rec[1] else 0.0), classes))
+  #for rec in archetypes[:max_samples]:
+  for rec in archetypes:
+      #decks.append(rec[0])
+      decks.append( map(lambda x: (1.0 if x in rec[0] else 0.0), cards))
+      #labels.append( map(lambda x: (1.0 if x == rec[1] else 0.0), cards))
       labels.append(classes.index(rec[1]))
 
 
-  split = int(len(decks) * 0.8)
-  tv_split = int(split* 0.8)
+  deck_count = len(decks)
+  print("Read decks: "+str(deck_count))
+  split = int(deck_count * 0.8)
+  print("Train Split: "+str(split))
+  #tv_split = int((deck_count - split)*0.8) + split
+  #print("Test/Validation Split: "+str(tv_split))
 
-  data_sets.train = DataSet(decks[(split):], labels[(split):], classes)
-  data_sets.validation = DataSet(decks[tv_split:split],     labels[tv_split:split], classes)
-  data_sets.test = DataSet(decks[:tv_split],     labels[:tv_split], classes)
+  data_sets.train = DataSet(decks[:(split)], labels[:(split)], classes, cards)
+  #data_sets.validation = DataSet(decks[split:tv_split],     labels[split:tv_split], classes, cards)
+  #data_sets.test = DataSet(decks[tv_split:],     labels[tv_split:], classes, cards)
+  data_sets.test = DataSet(decks[split:],     labels[split:], classes, cards)
 
   return data_sets

@@ -22,9 +22,20 @@ tf.logging.set_verbosity(tf.logging.DEBUG)
 
 tf.app.flags.DEFINE_integer('training_iteration', 1000,
                                     'number of training iterations.')
-tf.app.flags.DEFINE_string('work_dir', '/myproject/', 'Working directory.')
+tf.app.flags.DEFINE_string('work_dir', '/archetype-data/', 'Working directory.')
 tf.app.flags.DEFINE_integer('export_version', 1, 'version number of the model.')
 FLAGS = tf.app.flags.FLAGS
+
+def multilayer_perceptron(x, weights, biases):
+  #layer_1 = tf.add(tf.matmul(x, weights['h1']), biases['b1'])
+  #layer_1 = tf.nn.sigmoid(layer_1)
+  # Hidden layer with RELU activation
+  #layer_2 = tf.add(tf.matmul(layer_1, weights['h2']), biases['b2'])
+  #layer_2 = tf.nn.sigmoid(layer_2)
+  # Output layer with linear activation
+  #out_layer = tf.nn.softmax(tf.matmul(layer_1, weights['out']) + biases['out'])
+  out_layer = tf.matmul(x, weights['out'])+ biases['out']
+  return out_layer
 
 def main(_):
   print('Training model...')
@@ -33,6 +44,8 @@ def main(_):
   serialized_tf_example = tf.placeholder(tf.string, name='tf_example')
   num_inputs = archetype_data.train.num_inputs
   num_classes = archetype_data.train.num_classes
+  print("Inputs: ", num_inputs)
+  print("Classes: ", num_classes)
   feature_configs = {
       'x': tf.FixedLenFeature(shape=[num_inputs], dtype=tf.float32),
   }
@@ -41,11 +54,27 @@ def main(_):
   y_ = tf.placeholder('float', shape=[None, num_classes])
   w = tf.Variable(tf.zeros([num_inputs, num_classes]))
   b = tf.Variable(tf.zeros([num_classes]))
+  #n_hidden_1 = 100 # 1st layer number of features
+  #n_hidden_2 = 100 # 2nd layer number of features
+  #weights = {
+    #'h1': tf.Variable(tf.truncated_normal([num_inputs, n_hidden_1])),
+    #'h2': tf.Variable(tf.truncated_normal([n_hidden_1, n_hidden_2])),
+    ##'out': tf.Variable(tf.truncated_normal([n_hidden_2, num_classes]))
+    #'out': tf.Variable(tf.zeros([num_inputs, num_classes]))
+  #}
+  #biases = {
+    #'b1': tf.Variable(tf.zeros([n_hidden_1])),
+    #'b2': tf.Variable(tf.zeros([n_hidden_2])),
+    #'out': tf.Variable(tf.zeros([num_classes]))
+  #}
   init = tf.global_variables_initializer()
   sess.run(init)
-  y = tf.cast(tf.nn.softmax(tf.matmul(x, w) + b, name='y'), tf.float32)
+  #y = multilayer_perceptron(x, weights, biases)
+  y= tf.cast(tf.nn.softmax(tf.matmul(x, w) + b, name='y'), tf.float32)
+  #cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=y, labels=y_)) #-tf.reduce_sum(y_ * tf.log(y))
   cross_entropy = -tf.reduce_sum(y_ * tf.log(y))
   train_step = tf.train.GradientDescentOptimizer(0.01).minimize(cross_entropy)
+  #train_step = tf.train.AdamOptimizer(learning_rate=0.01).minimize(cross_entropy)
   values, indices = tf.nn.top_k(y, num_classes)
   mapping_string = tf.constant([str(i) for i in archetype_data.train.classes])
   prediction_classes = tf.contrib.lookup.index_to_string(
@@ -62,6 +91,8 @@ def main(_):
     train_step.run(feed_dict={x: batch[0], y_: batch[1]})
   correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(y_, 1))
   accuracy = tf.reduce_mean(tf.cast(correct_prediction, 'float'))
+  print(archetype_data.test.decks[0])
+  print(archetype_data.test.labels[0])
   print('training accuracy %g' %
         sess.run(accuracy,
                  feed_dict={x: archetype_data.test.decks,
